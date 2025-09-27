@@ -7,6 +7,7 @@ import base64
 import getpass
 import hashlib
 import numpy as np
+import pandas as pd
 
 def download_and_decrypt_data(file_id="1V2S-lUrFxcAJze_opSaWZrfk3_6LBdJL", encrypted_filename="encrypted_data.enc", decrypted_filename="decrypted_data_file.csv"):
     """
@@ -70,5 +71,61 @@ def download_and_decrypt_data(file_id="1V2S-lUrFxcAJze_opSaWZrfk3_6LBdJL", encry
         print(f"An error occurred during decryption: {e}")
         print("Please check if the password is correct.")
         return False
+
+def general_df_clean_up(df):
+  # Convert all column names to lowercase
+  df.columns = df.columns.str.lower()
+
+  # shiptocounty and shipfromcounty, are monotonic (always US) and are dropped
+  df = df.drop(columns=['shiptocounty', 'shipfromcounty'])
+
+  # convert invoicedate to datetime, there is no hours, minutes, seconds, so only the date is extracted
+  df['invoicedate'] = pd.to_datetime(df['invoicedate'])
+
+  # we have many columns with redudant text
+  redundant_text_columns = ['counterpartyidentifier', 'productdescription', 'productgroup', 'productline', 'shiptoname', 'shipfromname']
+
+  for col in redundant_text_columns:
+    # Use .str.replace with a regular expression to remove non-numeric characters
+    df[col] = df[col].str.replace(r'\D', '', regex=True)
+
+    # Use pd.to_numeric to convert the cleaned strings to integers
+    # errors='coerce' will turn any values that still can't be converted into NaN (Not a Number)
+    df[col] = pd.to_numeric(df[col], errors='coerce')
+
+
+  # Finally, if you need the columns to be strictly of integer type (not float), you can use .astype(int)
+  df[redundant_text_columns] = df[redundant_text_columns].astype(int)
+
+  # resolving the single issues using CAD by coverting to USD
+  cad_mask = df.unit_price_currency == 'CAD'
+  print(f'# of rows with CAD: {cad_mask.sum()}')
+  cad_value = df.loc[cad_mask, 'unit_price'].values[0]
+  cad_date = df.loc[cad_mask, 'invoicedate'].values[0]
+
+  print(f'Canadian Sale\tAmount in Canadian: {cad_value}\tDate of Sale: {cad_date}')
+  print(f'CAD/USD Rate on 2021-2-5: 1 CAD = 078351')
+  df.loc[cad_mask, 'unit_price'] = df.loc[cad_mask, 'unit_price'] * .78351  # the actual coversion is done here, the rest is just for display purposes
+  print(f'Amount after conversion: {df.loc[cad_mask, 'unit_price'].values[0]}')
+
+  print('Dropping unit price currency as all values are now in USD.')
+  df = df.drop(columns = 'unit_price_currency')
+
+  # Count all duplicate rows
+  num_duplicate_rows = df.duplicated().sum()
+  print(f"\nNumber of duplicate rows (considering all columns): {num_duplicate_rows}")
+
+  # Show all rows that are duplicates (including their first occurrence)
+  # all_duplicate_rows = df[df.duplicated(keep=False)]
+
+  # Drop duplicates
+  df = df.drop_duplicates()
+  print('Dropped all duplicate rows')
+
+  df['month'] = df.invoicedate.dt.month
+  df['year'] = df.invoicedate.dt.year
+  df['day'] = df.invoicedate.dt.day
+  print('Separate month, year, day columns created.')
+  return df
 
 
