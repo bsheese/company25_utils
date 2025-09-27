@@ -1,3 +1,6 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
 def plot_polar_aggregation(df, columns_of_interest, plotfunc='count'):
     """
     Generates and displays a polar plot for aggregated data from a DataFrame.
