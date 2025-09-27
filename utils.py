@@ -71,5 +71,4 @@ def download_and_decrypt_data(file_id="1V2S-lUrFxcAJze_opSaWZrfk3_6LBdJL", encry
         print("Please check if the password is correct.")
         return False
 
-# Call the function to download and decrypt the data
-download_and_decrypt_data()
+
