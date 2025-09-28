@@ -77,6 +77,7 @@ def general_df_clean_up(df):
   df.columns = df.columns.str.lower()
 
   # shiptocounty and shipfromcounty, are monotonic (always US) and are dropped
+  print('\nshiptocounty and shipfromcounty, are monotonic (always US) and are dropped.\n')
   df = df.drop(columns=['shiptocounty', 'shipfromcounty'])
 
   # convert invoicedate to datetime, there is no hours, minutes, seconds, so only the date is extracted
@@ -99,6 +100,7 @@ def general_df_clean_up(df):
 
   # resolving the single issues using CAD by coverting to USD
   cad_mask = df.unit_price_currency == 'CAD'
+  print('Fixing the Canadian Currenty issue...')
   print(f'# of rows with CAD: {cad_mask.sum()}')
   cad_value = df.loc[cad_mask, 'unit_price'].values[0]
   cad_date = df.loc[cad_mask, 'invoicedate'].values[0]
@@ -108,24 +110,50 @@ def general_df_clean_up(df):
   df.loc[cad_mask, 'unit_price'] = df.loc[cad_mask, 'unit_price'] * .78351  # the actual coversion is done here, the rest is just for display purposes
   print(f'Amount after conversion: {df.loc[cad_mask, 'unit_price'].values[0]}')
 
-  print('Dropping unit price currency as all values are now in USD.')
+  print('Dropping unit price currency as all values are now in USD.\n')
   df = df.drop(columns = 'unit_price_currency')
 
   # Count all duplicate rows
   num_duplicate_rows = df.duplicated().sum()
-  print(f"\nNumber of duplicate rows (considering all columns): {num_duplicate_rows}")
+  print(f"\nNumber of duplicate rows (considering all columns): {num_duplicate_rows}\n")
 
   # Show all rows that are duplicates (including their first occurrence)
   # all_duplicate_rows = df[df.duplicated(keep=False)]
 
   # Drop duplicates
   df = df.drop_duplicates()
-  print('Dropped all duplicate rows')
+  print('Dropped all duplicate rows\n')
 
+  # Exploring zeros in columns of interest
+  columns_of_interest = ['quantity', 'unit_price', 'total']
+  for col in columns_of_interest:
+    zero_counts = df[df[col] == 0].shape[0]
+    print(f"Number of rows with zero values in '{col}': {zero_counts}")
+
+  print(f"Original DataFrame shape: {df.shape}")
+  df = df[df['total'] != 0].copy() # Use .copy() to avoid SettingWithCopyWarning
+  print(f"DataFrame shape after dropping rows with total = 0: {df.shape}\n")  
+
+  # Exploring Quantities of Less than One
+  # ~89k sale transactions have a quantity of 0.74 
+  # ~25k return transactions have a quantity of 0.74 
+  # visualization of distributions show 0.74 heavily contribute to non-normality
+  # visualization of distributions show 1.48 (2 X .74) also heavily contribute to non-normality
+
+  # lets do a transform to normalize the quantites in integers values
+  df['quantity'] = df['quantity'] / .74
+
+  # lets do a tranform to normalize the unit_prices in values that tend to end in ,99
+  df['unit_price'] = df['unit_price'] * .74
+
+  # then lets recalculate the total
+  df['total'] = df['quantity'] * df['unit_price']
+  print('Normalized Quantity, Unit Price, and Total\n')
+    
   df['month'] = df.invoicedate.dt.month
   df['year'] = df.invoicedate.dt.year
   df['day'] = df.invoicedate.dt.day
-  print('Separate month, year, day columns created.')
+  print('Separate month, year, day columns created.\n')
   return df
 
 
